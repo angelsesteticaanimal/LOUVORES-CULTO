@@ -30,22 +30,13 @@ label{font-size:13px;color:var(--mu)}.g2{display:grid;grid-template-columns:1fr 
 .card.full .obs{font-size:clamp(18px,3vw,34px)}.card.full .row{display:none}.fx{display:none}.card.full .fx{display:block;position:fixed;top:10px;right:10px}
 details summary{cursor:pointer;padding:6px 0;font-weight:600}
 </style></head><body>
-<header><h1>🎵 Louvores do Culto <small>v2.0</small></h1><span id="st">Local</span></header>
+<header><h1>🎵 Louvores do Culto <small>v2.1</small></h1><span id="st">Local</span></header>
 <nav id="nav"></nav><main id="v"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
 <script>
-/* ====== CONFIGURAÇÃO: cole aqui o firebaseConfig do seu projeto (entre as chaves) ====== */
-const FIREBASE_CONFIG = {
- apiKey: "AIzaSyDgms2-cO4xUay-O5Ybq--9kDsqyFP2YVA",
-  authDomain: "louvores-culto.firebaseapp.com",
-  projectId: "louvores-culto",
-  storageBucket: "louvores-culto.firebasestorage.app",
-  messagingSenderId: "805273928141",
-  appId: "1:805273928141:web:52e932d8fa440533474484"
-};
-/* ======================================================================================= */
 const TIPOS=["Culto de Ceia","Culto das Senhoras","Culto de Oração","EBD","Vigília","Madrugada","Glorificação","Culto Padrão","Outro"];
 const PAP={admin:"Líder",completo:"Completo",leitura:"Leitura"};
 const $=s=>document.querySelector(s);
@@ -55,7 +46,7 @@ const fmt=d=>new Date(d+"T12:00").toLocaleDateString("pt-BR",{weekday:"long",day
 const mkid=(d,t)=>(d+"_"+t).replace(/[^\w-]/g,"-");
 const slug=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"");
 const LS=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
-const HAS=!!FIREBASE_CONFIG.apiKey, FB=HAS&&typeof firebase!=="undefined";
+const HAS=typeof FIREBASE_CONFIG!=="undefined"&&!!FIREBASE_CONFIG.apiKey, FB=HAS&&typeof firebase!=="undefined";
 let auth,db,user=null,ig=LS("lc_ig"),cand=null,pend=false,papel=HAS?null:"admin",unsub=[],qp=new URLSearchParams(location.search).get("igreja");
 let cultos=HAS?{}:(LS("lc_cultos")||{}),pedidos={},membros={},tab="hoje",modo="in",rows=[{num:"",nome:""}],form={data:today(),tipo:TIPOS[0],hora:"",obs:""},msg="";
 const canEdit=()=>papel=="admin"||papel=="completo";
@@ -117,7 +108,7 @@ function hist(){const q=($("#q").value||"").toLowerCase();const l=list().filter(
  $("#hl").innerHTML=l.length?l.map(c=>`<details class="card"><summary>${c.data.split("-").reverse().join("/")} · ${esc(c.tipo)} <small style="color:var(--mu)">(${c.louvores.length} louvores)</small></summary>${card(c)}</details>`).join(""):'<div class="vazio">Nada encontrado.</div>'}
 /* ---- login / igreja ---- */
 function authView(){$("#v").innerHTML=`<div class="card"><h3>${modo=="in"?"Entrar":"Criar conta"}</h3>${modo=="up"?'<label>Seu nome</label><input id="an">':""}<label>E-mail</label><input id="ae" type="email"><label>Senha</label><input id="as" type="password"><div class="row"><button onclick="doAuth()">${modo=="in"?"Entrar":"Criar conta"}</button><button class="g" onclick="modo=modo=='in'?'up':'in';msg='';authView()">${modo=="in"?"Criar conta":"Já tenho conta"}</button></div>${M()}</div>`}
-async function doAuth(){const e=$("#ae").value.trim(),p=$("#as").value;try{if(modo=="up"){const c=await auth.createUserWithEmailAndPassword(e,p);await c.user.updateProfile({displayName:$("#an").value.trim()})}else await auth.signInWithEmailAndPassword(e,p);msg=""}catch(x){msg="⚠ "+errTxt(x);authView()}}
+async function doAuth(){const e=$("#ae").value.trim(),p=$("#as").value,n=$("#an")?$("#an").value.trim():"";try{if(modo=="up"){const c=await auth.createUserWithEmailAndPassword(e,p);try{await c.user.updateProfile({displayName:n})}catch(x){}}else await auth.signInWithEmailAndPassword(e,p);msg=""}catch(x){msg="⚠ "+errTxt(x);if(user)draw();else authView()}}
 function igView(){const c=cand;$("#v").innerHTML=`<div class="card"><h3>Entrar na sua igreja</h3><label>Código da igreja</label><input id="ic" value="${esc(c?c.id:"")}" placeholder="ex.: igreja-central-rj"><button class="b" onclick="join($('#ic').value)">Continuar</button>${c?(pend?'<p>⏳ Pedido enviado. Aguarde o líder liberar seu acesso.</p><button class="g b" onclick="join(cand.id)">Verificar novamente</button>':`<p>Igreja encontrada: <b>${esc(c.nome)}</b></p><button class="b" onclick="pedir()">Solicitar acesso</button>`):""}${M()}</div>
 <div class="card"><h3>Cadastrar minha igreja</h3><label>Nome da igreja</label><input id="cn"><label>Código (letras minúsculas, números e hífen)</label><input id="cc" placeholder="igreja-central-rj"><button class="b" onclick="criaIg()">Cadastrar e ser o líder</button></div>
 <div class="row"><button class="g" onclick="auth.signOut()">Sair (${esc(user.email)})</button></div>`}
