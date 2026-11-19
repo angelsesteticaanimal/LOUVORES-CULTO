@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function logado() { return request.auth != null; }
+    function ehMembro(ig) {
+      return logado() && exists(/databases/$(db)/documents/igrejas/$(ig)/membros/$(request.auth.uid));
+    }
+    function papel(ig) {
+      return get(/databases/$(db)/documents/igrejas/$(ig)/membros/$(request.auth.uid)).data.papel;
+    }
+    function ehLider(ig) { return ehMembro(ig) && papel(ig) == 'admin'; }
+    function podeEditar(ig) { return ehMembro(ig) && papel(ig) in ['admin', 'completo']; }
+
+    match /igrejas/{ig} {
+      allow get: if logado();
+      allow list: if false;
+      allow create: if logado() && request.resource.data.dono == request.auth.uid;
+      allow update, delete: if ehLider(ig);
+
+      match /membros/{uid} {
+        allow read: if logado() && (request.auth.uid == uid || ehLider(ig));
+        allow create: if logado() && (
+          ehLider(ig) ||
+          (request.auth.uid == uid
+            && get(/databases/$(db)/documents/igrejas/$(ig)).data.dono == uid
+            && request.resource.data.papel == 'admin')
+        );
+        allow update, delete: if ehLider(ig);
+      }
+
+      match /pedidos/{uid} {
+        allow create, update: if logado() && request.auth.uid == uid;
+        allow read, delete: if logado() && (request.auth.uid == uid || ehLider(ig));
+      }
+
+      match /cultos/{id} {
+        allow read: if ehMembro(ig);
+        allow create, update, delete: if podeEditar(ig);
+      }
+    }
+  }
+}
