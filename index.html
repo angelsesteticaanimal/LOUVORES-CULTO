@@ -38,7 +38,7 @@ details summary{cursor:pointer;padding:6px 0;font-weight:600}
 <script>
 /* ====== CONFIGURAÇÃO: cole aqui o firebaseConfig do seu projeto (entre as chaves) ====== */
 const FIREBASE_CONFIG = {
- apiKey: "AIzaSyDgms2-cO4xUay-O5Ybq--9kDsqyFP2YVA",
+  apiKey: "AIzaSyDgms2-c04xUay-O5Ybq--9kDsqyFP2YVA",
   authDomain: "louvores-culto.firebaseapp.com",
   projectId: "louvores-culto",
   storageBucket: "louvores-culto.firebasestorage.app",
@@ -66,6 +66,7 @@ function errTxt(e){const c=e.code||"";if(/invalid-credential|wrong-password|user
 function init(){
  if(HAS&&!FB){$("#v").innerHTML='<div class="vazio">Sem conexão com o Firebase. Conecte-se à internet e recarregue.</div>';return}
  if(!HAS){draw();return}
+ if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
  auth=firebase.auth();db=firebase.firestore();db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
  auth.onAuthStateChanged(u=>{user=u;if(!u){stop();papel=null;draw();return}const q=qp||(ig&&ig.id);qp=null;if(q)join(q);else draw()});
 }
