@@ -1,5 +1,5 @@
-const FIREBASE_CONFIG = {
-  apiKey: "COLE_AQUI",
+const firebaseConfig = {
+  apiKey: "AIzaSyDgms2-cO4xUay-O5Ybq--9kDsqyFP2YVA",
   authDomain: "louvores-culto.firebaseapp.com",
   projectId: "louvores-culto",
   storageBucket: "louvores-culto.firebasestorage.app",
