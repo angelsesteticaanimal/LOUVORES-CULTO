@@ -29,13 +29,15 @@ label{font-size:13px;color:var(--mu)}.g2{display:grid;grid-template-columns:1fr 
 .card.full .lv{font-size:clamp(26px,5vw,64px);padding:1.4vw 0}.card.full .tipo{font-size:clamp(18px,3vw,34px)}.card.full .data{font-size:clamp(16px,2.4vw,26px)}
 .card.full .obs{font-size:clamp(18px,3vw,34px)}.card.full .row{display:none}.fx{display:none}.card.full .fx{display:block;position:fixed;top:10px;right:10px}
 details summary{cursor:pointer;padding:6px 0;font-weight:600}
+.aut{font-size:12px;color:var(--mu);margin:-4px 0 10px}.card.full .aut{font-size:clamp(12px,1.6vw,18px)}.qb{background:#fff;padding:12px;border-radius:12px;display:inline-block;margin:8px 0}
 </style></head><body>
-<header><h1>🎵 Louvores do Culto <small>v2.3</small></h1><span id="st">Local</span></header>
+<header><h1>🎵 Louvores do Culto <small>v3.0</small></h1><span id="st">Local</span></header>
 <nav id="nav"></nav><main id="v"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=23"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js?v=30"></script>
 <script>
 const TIPOS=["Culto de Ceia","Culto das Senhoras","Culto de Oração","EBD","Vigília","Madrugada","Glorificação","Culto Padrão","Outro"];
 const PAP={admin:"Líder",completo:"Completo",leitura:"Leitura"};
@@ -49,35 +51,37 @@ const LS=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k))
 const CFG=typeof FIREBASE_CONFIG!=="undefined"?FIREBASE_CONFIG:(typeof firebaseConfig!=="undefined"?firebaseConfig:{});
 const CHAVE_OK=/^AIza[\w-]{35}$/.test(String(CFG.apiKey||""));
 const HAS=!!CFG.apiKey, FB=HAS&&typeof firebase!=="undefined";
-let auth,db,user=null,ig=LS("lc_ig"),cand=null,pend=false,papel=HAS?null:"admin",unsub=[],qp=new URLSearchParams(location.search).get("igreja");
+let auth,db,user=null,ig=LS("lc_ig"),cand=null,pend=false,papel=HAS?null:"admin",unsub=[],qp=new URLSearchParams(location.search).get("igreja"),qk=new URLSearchParams(location.search).get("k"),qt=new URLSearchParams(location.search).get("t"),eu="",ch=null,qrT=null;
 let cultos=HAS?{}:(LS("lc_cultos")||{}),pedidos={},membros={},tab="hoje",modo="in",rows=[{num:"",nome:""}],form={data:today(),tipo:TIPOS[0],hora:"",obs:""},msg="";
 const canEdit=()=>papel=="admin"||papel=="completo";
 const M=()=>msg?`<div class="msg" style="color:${msg[0]=="⚠"?"var(--er)":"var(--ok)"}">${esc(msg)}</div>`:'<div class="msg"></div>';
 const link=()=>location.origin+location.pathname+"?igreja="+ig.id;
 const col=()=>db.collection("igrejas").doc(ig.id).collection("cultos");
+const dh=t=>t?new Date(t).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+const rk=()=>Array.from(crypto.getRandomValues(new Uint8Array(14)),b=>"abcdefghjkmnpqrstuvwxyz23456789"[b%31]).join("");
 function errTxt(e){const c=e.code||"";if(/invalid-credential|wrong-password|user-not-found/.test(c))return"E-mail ou senha incorretos.";if(c.includes("email-already"))return"Este e-mail já está cadastrado.";if(c.includes("weak-password"))return"Senha fraca (mínimo 6 caracteres).";if(c.includes("invalid-email"))return"E-mail inválido.";if(c.includes("permission"))return"Sem permissão para esta ação.";return e.message||String(e)}
 function init(){
  if(HAS&&!FB){$("#v").innerHTML='<div class="vazio">Sem conexão com o Firebase. Conecte-se à internet e recarregue.</div>';return}
  if(!HAS){draw();return}
  if(!firebase.apps.length)firebase.initializeApp(CFG);
  auth=firebase.auth();db=firebase.firestore();db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
- auth.onAuthStateChanged(u=>{user=u;if(!u){stop();papel=null;draw();return}const q=qp||(ig&&ig.id);qp=null;if(q)join(q);else draw()});
+ auth.onAuthStateChanged(u=>{user=u;if(!u){stop();papel=null;if(qp&&qk){auth.signInAnonymously().catch(e=>{msg="⚠ "+errTxt(e);draw()});return}draw();return}const q=qp||(ig&&ig.id);if(!u.isAnonymous)qp=null;if(q)join(q);else draw()});
 }
-function stop(){unsub.forEach(f=>f());unsub=[];cultos={};pedidos={};membros={}}
+function stop(){unsub.forEach(f=>f());unsub=[];cultos={};pedidos={};membros={};ch=null}
 async function join(id){
  id=slug(id);if(!id)return;msg="";pend=false;
  try{const d=await db.collection("igrejas").doc(id).get();
   if(!d.exists){msg="⚠ Igreja não encontrada.";ig=null;cand=null;draw();return}
   const m=await db.doc(`igrejas/${id}/membros/${user.uid}`).get();
-  if(m.exists){ig={id,nome:d.data().nome};papel=m.data().papel;LS("lc_ig",ig);cand=null;listen();draw();return}
-  ig=null;cand={id,nome:d.data().nome};const p=await db.doc(`igrejas/${id}/pedidos/${user.uid}`).get();pend=p.exists;draw();
+  if(m.exists){ig={id,nome:d.data().nome};papel=m.data().papel;eu=m.data().nome||user.displayName||user.email||"";LS("lc_ig",ig);cand=null;listen();draw();return}
+  ig=null;cand={id,nome:d.data().nome};const p=user.isAnonymous?{exists:false}:await db.doc(`igrejas/${id}/pedidos/${user.uid}`).get();pend=p.exists;draw();
  }catch(e){msg="⚠ "+errTxt(e);draw()}}
 function listen(){stop();const base=db.collection("igrejas").doc(ig.id);
  const er=e=>{if(e.code=="permission-denied"){stop();ig=null;papel=null;LS("lc_ig",null);msg="⚠ Você não tem mais acesso a esta igreja.";draw()}};
  unsub.push(base.collection("cultos").onSnapshot(s=>{const o={};s.forEach(d=>o[d.id]=d.data());cultos=o;redraw()},er));
  if(papel=="admin"){
   unsub.push(base.collection("pedidos").onSnapshot(s=>{pedidos={};s.forEach(d=>pedidos[d.id]=d.data());redraw()},er));
-  unsub.push(base.collection("membros").onSnapshot(s=>{membros={};s.forEach(d=>membros[d.id]=d.data());redraw()},er))}}
+  unsub.push(base.collection("membros").onSnapshot(s=>{membros={};s.forEach(d=>membros[d.id]=d.data());redraw()},er));unsub.push(base.collection("segredos").doc("chaves").onSnapshot(d=>{ch=d.exists?d.data():null;redraw()},er))}}
 function redraw(){if(tab=="edit"&&canEdit()){navDraw();return}draw()}
 function navDraw(){
  const t=[["hoje","Hoje"],["hist","Histórico"]];if(canEdit())t.push(["edit","Editar"]);
@@ -85,7 +89,7 @@ function navDraw(){
  t.push(["cfg","Conta"]);if(!t.some(x=>x[0]==tab))tab="hoje";
  $("#nav").innerHTML=t.map(([k,n])=>`<button class="${k==tab?"on":""}" onclick="tab='${k}';draw()">${n}</button>`).join("")}
 function txt(c){return c.tipo+" — "+fmt(c.data)+(c.hora?" às "+c.hora:"")+"\n\n"+c.louvores.map(l=>(l.num?l.num+" - ":"")+l.nome).join("\n")+(c.obs?"\n\nOrientações:\n"+c.obs:"")}
-function card(c){return `<div class="card" id="c_${c.id}"><button class="b r fx" onclick="closeTv('${c.id}')">✕ Fechar</button><div class="tipo">${esc(c.tipo)}${c.hora?" · "+esc(c.hora):""}</div><div class="data">${fmt(c.data)}</div>${c.louvores.map(l=>`<div class="lv"><b>${esc(l.num)}</b><span>${esc(l.nome)}</span></div>`).join("")}${c.obs?`<div class="obs"><h4>Orientações</h4>${esc(c.obs).replace(/\n/g,"<br>")}</div>`:""}<div class="row"><button onclick="tv('${c.id}')">📺 Tela cheia</button><button onclick="wpp('${c.id}')">WhatsApp</button><button class="g" onclick="cp('${c.id}')">Copiar</button></div></div>`}
+function card(c){return `<div class="card" id="c_${c.id}"><button class="b r fx" onclick="closeTv('${c.id}')">✕ Fechar</button><div class="tipo">${esc(c.tipo)}${c.hora?" · "+esc(c.hora):""}</div><div class="data">${fmt(c.data)}</div>${c.criadoPor?`<div class="aut">Criado por <b>${esc(c.criadoPor)}</b> em ${dh(c.criadoEm)}${c.editadoPor?` · Atualizado por <b>${esc(c.editadoPor)}</b> em ${dh(c.editadoEm)}`:""}</div>`:""}${c.louvores.map(l=>`<div class="lv"><b>${esc(l.num)}</b><span>${esc(l.nome)}</span></div>`).join("")}${c.obs?`<div class="obs"><h4>Orientações</h4>${esc(c.obs).replace(/\n/g,"<br>")}</div>`:""}<div class="row"><button onclick="tv('${c.id}')">📺 Tela cheia</button><button onclick="wpp('${c.id}')">WhatsApp</button><button class="g" onclick="cp('${c.id}')">Copiar</button></div></div>`}
 function tv(id){const e=$("#c_"+id);e.classList.add("full");try{e.requestFullscreen&&e.requestFullscreen()}catch(x){}}
 function closeTv(id){$("#c_"+id).classList.remove("full");if(document.fullscreenElement)document.exitFullscreen()}
 document.addEventListener("fullscreenchange",()=>{if(!document.fullscreenElement)document.querySelectorAll(".card.full").forEach(e=>e.classList.remove("full"))});
@@ -95,8 +99,8 @@ function list(){return Object.entries(cultos).map(([id,c])=>({...c,id})).sort((a
 function draw(){
  const v=$("#v");
  if(HAS){
-  if(!user){$("#nav").innerHTML="";$("#st").textContent="Offline";return authView()}
-  if(!ig||!papel){$("#nav").innerHTML="";$("#st").textContent=user.email;return igView()}
+  if(!user){$("#nav").innerHTML="";$("#st").textContent="Offline";if(qp&&qk&&!msg){$("#v").innerHTML='<div class="vazio">Conectando…</div>';return}return authView()}
+  if(!ig||!papel){$("#nav").innerHTML="";if(user.isAnonymous)return anonView();$("#st").textContent=user.email;return igView()}
   $("#st").textContent=ig.nome+" · "+PAP[papel]}
  else $("#st").textContent="Local (só neste aparelho)";
  navDraw();
@@ -109,8 +113,10 @@ function draw(){
 function hist(){const q=($("#q").value||"").toLowerCase();const l=list().filter(c=>!q||txt(c).toLowerCase().includes(q));
  $("#hl").innerHTML=l.length?l.map(c=>`<details class="card"><summary>${c.data.split("-").reverse().join("/")} · ${esc(c.tipo)} <small style="color:var(--mu)">(${c.louvores.length} louvores)</small></summary>${card(c)}</details>`).join(""):'<div class="vazio">Nada encontrado.</div>'}
 /* ---- login / igreja ---- */
-function authView(){$("#v").innerHTML=`<div class="card"><h3>${modo=="in"?"Entrar":"Criar conta"}</h3>${modo=="up"?'<label>Seu nome</label><input id="an">':""}<label>E-mail</label><input id="ae" type="email"><label>Senha</label><input id="as" type="password"><div class="row"><button onclick="doAuth()">${modo=="in"?"Entrar":"Criar conta"}</button><button class="g" onclick="modo=modo=='in'?'up':'in';msg='';authView()">${modo=="in"?"Criar conta":"Já tenho conta"}</button></div>${M()}</div><p style="font-size:12px;color:var(--mu);word-break:break-all;margin:6px 4px">Diagnóstico — projeto: <b>${esc(CFG.projectId)}</b><br>chave (${String(CFG.apiKey).length} caracteres): <b style="color:${CHAVE_OK?"var(--ok)":"var(--er)"}">${CHAVE_OK?"formato OK ✓":"⚠ inválida: deve começar com AIza e ter 39 caracteres"}</b><br><code style="font-size:15px;color:var(--tx)">${esc(CFG.apiKey)}</code></p>`}
+function authView(){$("#v").innerHTML=`<div class="card"><h3>${modo=="in"?"Entrar como líder":"Criar conta de líder"}</h3>${modo=="up"?'<label>Seu nome</label><input id="an">':""}<label>E-mail</label><input id="ae" type="email"><label>Senha</label><input id="as" type="password"><div class="row"><button onclick="doAuth()">${modo=="in"?"Entrar":"Criar conta"}</button><button class="g" onclick="modo=modo=='in'?'up':'in';msg='';authView()">${modo=="in"?"Criar conta":"Já tenho conta"}</button></div>${M()}<p style="font-size:13px;color:var(--mu)">Veio por QR Code ou link? Abra o link da igreja: você entra só com o seu nome, sem e-mail nem senha.</p></div>${CHAVE_OK?"":`<p style="font-size:12px;color:var(--mu);word-break:break-all;margin:6px 4px">Diagnóstico — projeto: <b>${esc(CFG.projectId)}</b><br>chave (${String(CFG.apiKey).length} caracteres): <b style="color:${CHAVE_OK?"var(--ok)":"var(--er)"}">${CHAVE_OK?"formato OK ✓":"⚠ inválida: deve começar com AIza e ter 39 caracteres"}</b><br><code style="font-size:15px;color:var(--tx)">${esc(CFG.apiKey)}</code></p>`}`}
 async function doAuth(){const e=$("#ae").value.trim(),p=$("#as").value,n=$("#an")?$("#an").value.trim():"";try{if(modo=="up"){const c=await auth.createUserWithEmailAndPassword(e,p);try{await c.user.updateProfile({displayName:n})}catch(x){}}else await auth.signInWithEmailAndPassword(e,p);msg=""}catch(x){msg="⚠ "+errTxt(x);if(user)draw();else authView()}}
+function anonView(){const c=cand;$("#st").textContent="Entrar com nome";$("#v").innerHTML=c&&qk?`<div class="card"><h3>${esc(c.nome)}</h3><p style="color:var(--mu)">Digite seu nome para entrar ${qt=="e"?"(você poderá ver e editar)":"(você poderá ver os cultos)"}.</p><label>Seu nome</label><input id="nm" value="${esc(LS("lc_nome")||"")}" autocomplete="name"><button class="b" onclick="entra()">Entrar</button>${M()}</div>`:`<div class="card"><h3>Entrar por QR Code ou link</h3><p style="color:var(--mu)">Abra o link ou escaneie o QR Code que o líder da igreja enviou.</p>${M()}</div>`}
+async function entra(){const n=$("#nm").value.trim();if(n.length<2){msg="⚠ Digite seu nome.";anonView();return}LS("lc_nome",n);try{await db.doc(`igrejas/${cand.id}/membros/${user.uid}`).set({nome:n,papel:qt=="e"?"completo":"leitura",chave:qk,entrou:Date.now()});msg="";await join(cand.id)}catch(e){msg="⚠ Link inválido ou antigo. Peça um novo ao líder.";anonView()}}
 function igView(){const c=cand;$("#v").innerHTML=`<div class="card"><h3>Entrar na sua igreja</h3><label>Código da igreja</label><input id="ic" value="${esc(c?c.id:"")}" placeholder="ex.: igreja-central-rj"><button class="b" onclick="join($('#ic').value)">Continuar</button>${c?(pend?'<p>⏳ Pedido enviado. Aguarde o líder liberar seu acesso.</p><button class="g b" onclick="join(cand.id)">Verificar novamente</button>':`<p>Igreja encontrada: <b>${esc(c.nome)}</b></p><button class="b" onclick="pedir()">Solicitar acesso</button>`):""}${M()}</div>
 <div class="card"><h3>Cadastrar minha igreja</h3><label>Nome da igreja</label><input id="cn"><label>Código (letras minúsculas, números e hífen)</label><input id="cc" placeholder="igreja-central-rj"><button class="b" onclick="criaIg()">Cadastrar e ser o líder</button></div>
 <div class="row"><button class="g" onclick="auth.signOut()">Sair (${esc(user.email)})</button></div>`}
@@ -120,12 +126,16 @@ async function criaIg(){const nome=$("#cn").value.trim(),id=slug($("#cc").value)
  try{if((await db.doc("igrejas/"+id).get()).exists){msg="⚠ Este código já existe. Escolha outro.";igView();return}
   await db.doc("igrejas/"+id).set({nome,dono:user.uid,criado:Date.now()});
   await db.doc(`igrejas/${id}/membros/${user.uid}`).set({email:user.email,nome:user.displayName||user.email,papel:"admin"});
+  await db.doc(`igrejas/${id}/segredos/chaves`).set({leitura:rk(),edicao:rk()});
   join(id)}catch(e){msg="⚠ "+errTxt(e);igView()}}
 /* ---- acessos (líder) ---- */
 function accView(){const pl=Object.entries(pedidos),ml=Object.entries(membros);
- $("#v").innerHTML=`<div class="card"><h3>Link e código da igreja</h3><p style="word-break:break-all">${esc(link())}</p><p>Código: <b>${esc(ig.id)}</b></p><button class="b" onclick="navigator.clipboard.writeText(link()).then(()=>alert('Link copiado!'))">Copiar link</button></div>
+ $("#v").innerHTML=`<div class="card"><h3>Acesso por QR Code ou link (só o nome)</h3>${ch?`<p style="color:var(--mu);font-size:14px">Quem abrir o link digita só o nome e entra. Nos cultos aparece quem criou e quem editou.</p>${["l","e"].map(t=>`<div class="pp"><b>${t=="l"?"Somente ver":"Ver e editar"}</b><br><small style="word-break:break-all">${esc(lk(t))}</small><div class="row"><button onclick="navigator.clipboard.writeText(lk('${t}')).then(()=>alert('Link copiado!'))">Copiar link</button><button class="g" onclick="qrT=qrT=='${t}'?null:'${t}';accView()">${qrT==t?"Ocultar QR":"Mostrar QR"}</button></div>${qrT==t?'<div class="qb" id="qrbox"></div>':""}</div>`).join("")}<div class="row"><button class="g" onclick="novasChaves()">Gerar novos links</button></div>`:`<p style="color:var(--mu)">Ainda não há links de acesso.</p><button class="b" onclick="novasChaves()">Gerar links de acesso</button>`}${M()}</div><div class="card"><h3>Entrada com e-mail (opcional)</h3><p style="word-break:break-all">${esc(link())}</p><p>Código: <b>${esc(ig.id)}</b></p><button class="b" onclick="navigator.clipboard.writeText(link()).then(()=>alert('Link copiado!'))">Copiar link</button></div>
 <div class="card"><h3>Pedidos de acesso</h3>${pl.length?pl.map(([u,p])=>`<div class="pp"><b>${esc(p.nome)}</b><br><small>${esc(p.email)}</small><div class="row"><button onclick="aprova('${u}','completo')">Completo</button><button class="g" onclick="aprova('${u}','leitura')">Leitura</button><button class="r" onclick="recusa('${u}')">Recusar</button></div></div>`).join(""):'<div class="vazio">Nenhum pedido pendente.</div>'}</div>
-<div class="card"><h3>Pessoas com acesso</h3>${ml.map(([u,m])=>`<div class="pp"><b>${esc(m.nome||m.email)}</b><br><small>${esc(m.email)}</small>${u==user.uid?"<br><small>Você (líder)</small>":`<div class="row"><select onchange="muda('${u}',this.value)">${Object.keys(PAP).map(p=>`<option value="${p}" ${p==m.papel?"selected":""}>${PAP[p]}</option>`).join("")}</select><button class="r" onclick="rem('${u}')">Remover</button></div>`}</div>`).join("")}${M()}</div>`}
+<div class="card"><h3>Pessoas com acesso</h3>${ml.map(([u,m])=>`<div class="pp"><b>${esc(m.nome||m.email)}</b><br><small>${esc(m.email||"entrou por link")}</small>${u==user.uid?"<br><small>Você (líder)</small>":`<div class="row"><select onchange="muda('${u}',this.value)">${Object.keys(PAP).map(p=>`<option value="${p}" ${p==m.papel?"selected":""}>${PAP[p]}</option>`).join("")}</select><button class="r" onclick="rem('${u}')">Remover</button></div>`}</div>`).join("")}${M()}</div>`;
+ if(qrT&&window.QRCode&&ch){const b=$("#qrbox");if(b){b.innerHTML="";new QRCode(b,{text:lk(qrT),width:220,height:220})}}}
+const lk=t=>location.origin+location.pathname+"?igreja="+ig.id+"&t="+t+"&k="+ch[t=="e"?"edicao":"leitura"];
+async function novasChaves(){if(ch&&!confirm("Os links antigos deixam de funcionar para novas entradas. Continuar?"))return;try{await db.doc(`igrejas/${ig.id}/segredos/chaves`).set({leitura:rk(),edicao:rk()});msg="Links gerados ✓"}catch(e){msg="⚠ "+errTxt(e)}accView()}
 const mref=u=>db.doc(`igrejas/${ig.id}/membros/${u}`),pref=u=>db.doc(`igrejas/${ig.id}/pedidos/${u}`);
 async function aprova(u,p){const q=pedidos[u];try{const b=db.batch();b.set(mref(u),{email:q.email,nome:q.nome,papel:p});b.delete(pref(u));await b.commit();msg="Acesso liberado ✓"}catch(e){msg="⚠ "+errTxt(e)}accView()}
 async function recusa(u){try{await pref(u).delete()}catch(e){msg="⚠ "+errTxt(e)}}
@@ -146,12 +156,12 @@ function mv(i,d){const j=i+d;if(j<0||j>=rows.length)return;[rows[i],rows[j]]=[ro
 function imp(){$("#ti").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(s=>{const m=s.match(/^(\d+)\s*[-–.:)]?\s*(.+)$/);rows.push(m?{num:m[1],nome:m[2]}:{num:"",nome:s})});rows=rows.filter(r=>r.num||r.nome);$("#ti").value="";rr()}
 function chg(){sync();form.data=$("#fd").value;form.tipo=$("#ft").value;const c=cultos[mkid(form.data,form.tipo)];if(c){rows=c.louvores.map(l=>({...l}));form.hora=c.hora||"";form.obs=c.obs||"";msg="Culto existente carregado."}else msg="";edit()}
 async function save(){sync();const l=rows.filter(r=>r.num.trim()||r.nome.trim());if(!l.length){alert("Adicione ao menos um louvor.");return}
- const o={data:form.data,tipo:form.tipo,hora:form.hora,obs:form.obs,louvores:l,upd:Date.now()},id=mkid(o.data,o.tipo);
+ const now=Date.now(),id=mkid(form.data,form.tipo),old=cultos[id],o={data:form.data,tipo:form.tipo,hora:form.hora,obs:form.obs,louvores:l,upd:now,criadoPor:(old&&old.criadoPor)||eu||"Local",criadoEm:(old&&old.criadoEm)||now};if(old){o.editadoPor=eu||"Local";o.editadoEm=now}
  try{if(db)await col().doc(id).set(o);else{cultos[id]=o;LS("lc_cultos",cultos)}msg="Salvo ✓"}catch(e){msg="⚠ "+errTxt(e)}edit()}
 async function del(){const id=mkid(form.data,form.tipo);if(!cultos[id]||!confirm("Excluir este culto?"))return;try{if(db)await col().doc(id).delete();else{delete cultos[id];LS("lc_cultos",cultos)}msg="Excluído.";rows=[{num:"",nome:""}];form.obs="";form.hora=""}catch(e){msg="⚠ "+errTxt(e)}edit()}
 function clr(){rows=[{num:"",nome:""}];form.obs="";form.hora="";msg="";edit()}
 /* ---- conta ---- */
-function cfgView(){$("#v").innerHTML=HAS?`<div class="card"><h3>Minha conta</h3><p>${esc(user.displayName||"")}<br><small style="color:var(--mu)">${esc(user.email)}</small></p><p>Igreja: <b>${esc(ig.nome)}</b> (${esc(ig.id)})<br>Acesso: <b>${PAP[papel]}</b></p><div class="row"><button class="g" onclick="stop();ig=null;papel=null;cand=null;LS('lc_ig',null);draw()">Trocar de igreja</button><button class="r" onclick="stop();LS('lc_ig',null);auth.signOut()">Sair</button></div></div>`:`<div class="card"><h3>Modo local</h3><p style="color:var(--mu)">Os dados ficam só neste aparelho. Para várias pessoas e várias igrejas, crie o arquivo config.js com o firebaseConfig do seu projeto.</p></div>`}
+function cfgView(){$("#v").innerHTML=HAS?`<div class="card"><h3>Minha conta</h3><p>${esc(eu)}<br><small style="color:var(--mu)">${esc(user.email||"Acesso por link")}</small></p><p>Igreja: <b>${esc(ig.nome)}</b> (${esc(ig.id)})<br>Acesso: <b>${PAP[papel]}</b></p><div class="row"><button class="g" onclick="stop();ig=null;papel=null;cand=null;LS('lc_ig',null);draw()">Trocar de igreja</button><button class="r" onclick="stop();LS('lc_ig',null);auth.signOut()">Sair</button></div></div>`:`<div class="card"><h3>Modo local</h3><p style="color:var(--mu)">Os dados ficam só neste aparelho. Para várias pessoas e várias igrejas, crie o arquivo config.js com o firebaseConfig do seu projeto.</p></div>`}
 init();
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 </script></body></html>
