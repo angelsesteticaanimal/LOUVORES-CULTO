@@ -29,15 +29,17 @@ label{font-size:13px;color:var(--mu)}.g2{display:grid;grid-template-columns:1fr 
 .card.full .lv{font-size:clamp(26px,5vw,64px);padding:1.4vw 0}.card.full .tipo{font-size:clamp(18px,3vw,34px)}.card.full .data{font-size:clamp(16px,2.4vw,26px)}
 .card.full .obs{font-size:clamp(18px,3vw,34px)}.card.full .row{display:none}.fx{display:none}.card.full .fx{display:block;position:fixed;top:10px;right:10px}
 details summary{cursor:pointer;padding:6px 0;font-weight:600}
+.sg{display:flex;flex-direction:column;gap:6px;margin:2px 0 8px}.sg button{padding:9px 12px;border:0;border-radius:10px;background:#ffffff1a;color:#fff;text-align:left;font-size:14px}
 .aut{font-size:12px;color:var(--mu);margin:-4px 0 10px}.card.full .aut{font-size:clamp(12px,1.6vw,18px)}.qb{background:#fff;padding:12px;border-radius:12px;display:inline-block;margin:8px 0}
 </style></head><body>
-<header><h1>🎵 Louvores do Culto <small>v3.0</small></h1><span id="st">Local</span></header>
+<header><h1>🎵 Louvores do Culto <small>v3.1</small></h1><span id="st">Local</span></header>
 <nav id="nav"></nav><main id="v"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="config.js?v=30"></script>
+<script src="louvores.js?v=1"></script>
 <script>
 const TIPOS=["Culto de Ceia","Culto das Senhoras","Culto de Oração","EBD","Vigília","Madrugada","Glorificação","Culto Padrão","Outro"];
 const PAP={admin:"Líder",completo:"Completo",leitura:"Leitura"};
@@ -88,8 +90,8 @@ function navDraw(){
  if(HAS&&papel=="admin"){const n=Object.keys(pedidos).length;t.push(["acc","Acessos"+(n?" ("+n+")":"")])}
  t.push(["cfg","Conta"]);if(!t.some(x=>x[0]==tab))tab="hoje";
  $("#nav").innerHTML=t.map(([k,n])=>`<button class="${k==tab?"on":""}" onclick="tab='${k}';draw()">${n}</button>`).join("")}
-function txt(c){return c.tipo+" — "+fmt(c.data)+(c.hora?" às "+c.hora:"")+"\n\n"+c.louvores.map(l=>(l.num?l.num+" - ":"")+l.nome).join("\n")+(c.obs?"\n\nOrientações:\n"+c.obs:"")}
-function card(c){return `<div class="card" id="c_${c.id}"><button class="b r fx" onclick="closeTv('${c.id}')">✕ Fechar</button><div class="tipo">${esc(c.tipo)}${c.hora?" · "+esc(c.hora):""}</div><div class="data">${fmt(c.data)}</div>${c.criadoPor?`<div class="aut">Criado por <b>${esc(c.criadoPor)}</b> em ${dh(c.criadoEm)}${c.editadoPor?` · Atualizado por <b>${esc(c.editadoPor)}</b> em ${dh(c.editadoEm)}`:""}</div>`:""}${c.louvores.map(l=>`<div class="lv"><b>${esc(l.num)}</b><span>${esc(l.nome)}</span></div>`).join("")}${c.obs?`<div class="obs"><h4>Orientações</h4>${esc(c.obs).replace(/\n/g,"<br>")}</div>`:""}<div class="row"><button onclick="tv('${c.id}')">📺 Tela cheia</button><button onclick="wpp('${c.id}')">WhatsApp</button><button class="g" onclick="cp('${c.id}')">Copiar</button></div></div>`}
+function txt(c){return c.tipo+" — "+fmt(c.data)+(c.hora?" às "+c.hora:"")+"\n\n"+c.louvores.map(l=>(l.num?l.num+" - ":"")+l.nome+(l.col&&l.col!="Tradicional"?" ("+l.col+")":"")).join("\n")+(c.obs?"\n\nOrientações:\n"+c.obs:"")}
+function card(c){return `<div class="card" id="c_${c.id}"><button class="b r fx" onclick="closeTv('${c.id}')">✕ Fechar</button><div class="tipo">${esc(c.tipo)}${c.hora?" · "+esc(c.hora):""}</div><div class="data">${fmt(c.data)}</div>${c.criadoPor?`<div class="aut">Criado por <b>${esc(c.criadoPor)}</b> em ${dh(c.criadoEm)}${c.editadoPor?` · Atualizado por <b>${esc(c.editadoPor)}</b> em ${dh(c.editadoEm)}`:""}</div>`:""}${c.louvores.map(l=>`<div class="lv"><b>${esc(l.num)}</b><span>${esc(l.nome)}${l.col&&l.col!="Tradicional"?` <small style="color:var(--mu)">(${esc(l.col)})</small>`:""}</span></div>`).join("")}${c.obs?`<div class="obs"><h4>Orientações</h4>${esc(c.obs).replace(/\n/g,"<br>")}</div>`:""}<div class="row"><button onclick="tv('${c.id}')">📺 Tela cheia</button><button onclick="wpp('${c.id}')">WhatsApp</button><button class="g" onclick="cp('${c.id}')">Copiar</button></div></div>`}
 function tv(id){const e=$("#c_"+id);e.classList.add("full");try{e.requestFullscreen&&e.requestFullscreen()}catch(x){}}
 function closeTv(id){$("#c_"+id).classList.remove("full");if(document.fullscreenElement)document.exitFullscreen()}
 document.addEventListener("fullscreenchange",()=>{if(!document.fullscreenElement)document.querySelectorAll(".card.full").forEach(e=>e.classList.remove("full"))});
@@ -150,12 +152,19 @@ function edit(){
  <label style="display:block;margin-top:10px">Orientações para o culto</label><textarea id="fo" rows="5" placeholder="Horário de chegada, quem dirige, avisos...">${esc(form.obs)}</textarea>
  <div class="row"><button onclick="save()">💾 Salvar culto</button><button class="g" onclick="del()">Excluir</button><button class="g" onclick="clr()">Limpar</button></div>${M()}</div>`;rr()}
 function sync(){form.hora=$("#fh").value;form.obs=$("#fo").value}
-function rr(){$("#rw").innerHTML=rows.map((r,i)=>`<div class="lr"><input value="${esc(r.num)}" placeholder="Nº" inputmode="numeric" oninput="rows[${i}].num=this.value"><input value="${esc(r.nome)}" placeholder="Nome do louvor" oninput="rows[${i}].nome=this.value"><button onclick="mv(${i},-1)">↑</button><button onclick="mv(${i},1)">↓</button><button onclick="rows.splice(${i},1);rr()">✕</button></div>`).join("")}
+function rr(){$("#rw").innerHTML=rows.map((r,i)=>`<div><div class="lr"><input value="${esc(r.num)}" placeholder="Nº" inputmode="numeric" oninput="rows[${i}].num=this.value;busca(${i})"><input id="nm${i}" value="${esc(r.nome)}" placeholder="Nome do louvor" oninput="rows[${i}].nome=this.value;rows[${i}].auto=false;rows[${i}].col=''"><button onclick="mv(${i},-1)">↑</button><button onclick="mv(${i},1)">↓</button><button onclick="rows.splice(${i},1);rr()">✕</button></div><div class="sg" id="sg${i}"></div></div>`).join("")}
+function indice(){if(window._ix)return window._ix;const ix={},L=window.LOUVORES||{};Object.keys(L).forEach(c=>L[c].split("\n").forEach(l=>{const p=l.indexOf("|");if(p<1)return;const n=String(parseInt(l.slice(0,p),10));(ix[n]=ix[n]||[]).push({col:c,nome:l.slice(p+1).trim()})}));return window._ix=ix}
+function busca(i){const r0=rows[i],box=$("#sg"+i),inp=$("#nm"+i);if(!box)return;if(r0.nome&&!r0.auto){box.innerHTML="";return}
+ const v=(r0.num||"").trim(),r=v?(indice()[String(parseInt(v,10))]||[]):[];
+ if(r.length!=1&&r0.auto){r0.nome="";r0.col="";r0.auto=false;if(inp)inp.value=""}
+ if(r.length==1){r0.nome=r[0].nome;r0.col=r[0].col;r0.auto=true;if(inp)inp.value=r[0].nome;box.innerHTML="";return}
+ box.innerHTML=r.map((x,k)=>`<button onclick="pick(${i},${k})">${esc(x.col)}: ${esc(x.nome)}</button>`).join("")}
+function pick(i,k){const r=indice()[String(parseInt(rows[i].num,10))]||[];if(!r[k])return;rows[i].nome=r[k].nome;rows[i].col=r[k].col;rows[i].auto=true;$("#nm"+i).value=r[k].nome;$("#sg"+i).innerHTML=""}
 function addRow(){rows.push({num:"",nome:""});rr()}
 function mv(i,d){const j=i+d;if(j<0||j>=rows.length)return;[rows[i],rows[j]]=[rows[j],rows[i]];rr()}
-function imp(){$("#ti").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(s=>{const m=s.match(/^(\d+)\s*[-–.:)]?\s*(.+)$/);rows.push(m?{num:m[1],nome:m[2]}:{num:"",nome:s})});rows=rows.filter(r=>r.num||r.nome);$("#ti").value="";rr()}
+function imp(){$("#ti").value.split("\n").map(s=>s.trim()).filter(Boolean).forEach(s=>{if(/^\d+$/.test(s)){rows.push({num:s,nome:""});return}const m=s.match(/^(\d+)\s*[-–.:)]?\s*(.+)$/);rows.push(m?{num:m[1],nome:m[2]}:{num:"",nome:s})});rows=rows.filter(r=>r.num||r.nome);$("#ti").value="";rr();rows.forEach((r,i)=>busca(i))}
 function chg(){sync();form.data=$("#fd").value;form.tipo=$("#ft").value;const c=cultos[mkid(form.data,form.tipo)];if(c){rows=c.louvores.map(l=>({...l}));form.hora=c.hora||"";form.obs=c.obs||"";msg="Culto existente carregado."}else msg="";edit()}
-async function save(){sync();const l=rows.filter(r=>r.num.trim()||r.nome.trim());if(!l.length){alert("Adicione ao menos um louvor.");return}
+async function save(){sync();const l=rows.filter(r=>r.num.trim()||r.nome.trim()).map(r=>{const x={num:r.num.trim(),nome:r.nome.trim()};if(r.col)x.col=r.col;return x});if(!l.length){alert("Adicione ao menos um louvor.");return}
  const now=Date.now(),id=mkid(form.data,form.tipo),old=cultos[id],o={data:form.data,tipo:form.tipo,hora:form.hora,obs:form.obs,louvores:l,upd:now,criadoPor:(old&&old.criadoPor)||eu||"Local",criadoEm:(old&&old.criadoEm)||now};if(old){o.editadoPor=eu||"Local";o.editadoEm=now}
  try{if(db)await col().doc(id).set(o);else{cultos[id]=o;LS("lc_cultos",cultos)}msg="Salvo ✓"}catch(e){msg="⚠ "+errTxt(e)}edit()}
 async function del(){const id=mkid(form.data,form.tipo);if(!cultos[id]||!confirm("Excluir este culto?"))return;try{if(db)await col().doc(id).delete();else{delete cultos[id];LS("lc_cultos",cultos)}msg="Excluído.";rows=[{num:"",nome:""}];form.obs="";form.hora=""}catch(e){msg="⚠ "+errTxt(e)}edit()}
