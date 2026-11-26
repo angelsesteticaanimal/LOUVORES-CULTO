@@ -36,7 +36,7 @@ details summary{cursor:pointer;padding:6px 0;font-weight:600}
 .pres h4{margin:14px 0 6px;color:var(--ac2)}.pres table{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 8px}.pres th,.pres td{padding:6px 4px;text-align:center;border-bottom:1px solid #ffffff12}.pres th:first-child,.pres td:first-child{text-align:left}.pres th{color:var(--mu);font-weight:600}.pn{font-size:13px;color:var(--mu);margin:6px 0}
 .ph,.pr{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:6px;align-items:center}.ph{color:var(--mu);font-size:13px;text-align:center}.pr input{margin:3px 0;text-align:center}.card.full .pres{display:none}
 </style></head><body>
-<header><h1>🎵 Louvores do Culto <small>v3.7</small></h1><span id="st">Local</span></header>
+<header><h1>🎵 Louvores do Culto <small>v3.9</small></h1><span id="st">Local</span></header>
 <nav id="nav"></nav><main id="v"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -232,16 +232,16 @@ function relMail(){location.href="mailto:?subject="+encodeURIComponent("Relatór
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 manifestDin();
 /* ---- presença (membros e visitantes) ---- */
-const CATS=[["var","Varões"],["sen","Senhoras"],["int","Intermediários"],["ado","Adolescentes"],["cri","Crianças"],["ace","Acessibilidade"]];
+const CATS=[["var","Varões"],["sen","Senhoras"],["jov","Jovens"],["int","Intermediários"],["ado","Adolescentes"],["cri","Crianças"],["ace","Acessibilidade"]];
 const nz=v=>Math.max(0,parseInt(v,10)||0),tt=x=>x.m+x.v;
-function pres(p){p=p||{};const g=k=>({m:nz(p[k]&&p[k].m),v:nz(p[k]&&p[k].v)}),s=(...ks)=>ks.reduce((a,k)=>({m:a.m+g(k).m,v:a.v+g(k).v}),{m:0,v:0});return{g,ad:s("var","sen"),cr:s("cri"),tot:s("var","sen","int","ado","cri")}}
+function pres(p){p=p||{};const g=k=>({m:nz(p[k]&&p[k].m),v:nz(p[k]&&p[k].v)}),s=(...ks)=>ks.reduce((a,k)=>({m:a.m+g(k).m,v:a.v+g(k).v}),{m:0,v:0});return{g,ad:s("var","sen"),cr:s("cri"),tot:s("var","sen","jov","int","ado","cri")}}
 const temPres=c=>!!(c&&(c.presObs||(c.pres&&CATS.some(([k])=>{const a=pres(c.pres).g(k);return a.m||a.v}))));
 const trow=(n,x,b)=>`<tr${b?' style="font-weight:700"':""}><td>${n}</td><td>${x.m}</td><td>${x.v}</td><td>${tt(x)}</td></tr>`,thead='<tr><th></th><th>Membros</th><th>Visitantes</th><th>Total</th></tr>';
 function presTab(p){const P=pres(p);return `<table>${thead}${trow("Adultos",P.ad)}${trow("Crianças",P.cr)}${trow("TOTAL",P.tot,1)}</table>`}
 function presCat(p){const P=pres(p);return `<table>${thead}${CATS.map(([k,n])=>trow(n+(k=="ace"?" (informativo)":""),P.g(k))).join("")}</table>`}
 function presCard(c){if(!temPres(c))return"";return `<div class="pres"><h4>Presença</h4>${presTab(c.pres)}${presCat(c.pres)}${c.presObs?`<p class="pn"><b>Informações:</b> ${esc(c.presObs).replace(/\n/g,"<br>")}</p>`:""}</div>`}
 function presForm(){const P=form.pres||{},inp=(k,t)=>`<input type="number" min="0" inputmode="numeric" value="${(P[k]&&P[k][t])||""}" placeholder="0" oninput="pset('${k}','${t}',this.value)">`;
- return `<div class="pres"><h4>Presença no culto</h4><div class="ph"><span></span><span>Membros</span><span>Visitantes</span></div>${CATS.map(([k,n])=>`<div class="pr"><span>${n}</span>${inp(k,"m")}${inp(k,"v")}</div>`).join("")}<p class="pn">Acessibilidade é só informativo e não entra nos totais: considere que essas pessoas já foram contadas nas outras linhas.</p><b>Somatório automático</b><div id="pcalc"></div><label>Informações complementares (acessibilidade ou outras)</label><textarea id="po" rows="3" placeholder="Ex.: 2 cadeirantes, 1 pessoa com deficiência auditiva...">${esc(form.presObs||"")}</textarea></div>`}
+ return `<div class="pres"><h4>Presença no culto</h4><div class="ph"><span></span><span>Membros</span><span>Visitantes</span></div>${CATS.map(([k,n])=>`<div class="pr"><span>${n}</span>${inp(k,"m")}${inp(k,"v")}</div>`).join("")}<p class="pn">Adultos = varões + senhoras. Jovens, intermediários, adolescentes e crianças são categorias separadas. Total = todas elas somadas. Acessibilidade é só informativo e não entra nos totais: considere que essas pessoas já foram contadas nas outras linhas.</p><b>Somatório automático</b><div id="pcalc"></div><label>Informações complementares (acessibilidade ou outras)</label><textarea id="po" rows="3" placeholder="Ex.: 2 cadeirantes, 1 pessoa com deficiência auditiva...">${esc(form.presObs||"")}</textarea></div>`}
 function pset(k,t,v){form.pres=form.pres||{};(form.pres[k]=form.pres[k]||{})[t]=v;presCalc()}
 function presCalc(){const el=$("#pcalc");if(el)el.innerHTML=presTab(form.pres)}
 function presTxt(c){if(!temPres(c))return"";const P=pres(c.pres);return "\n\nPresença: total "+tt(P.tot)+" (membros "+P.tot.m+" | visitantes "+P.tot.v+")\nAdultos "+tt(P.ad)+" | Crianças "+tt(P.cr)+"\n"+CATS.map(([k,n])=>{const x=P.g(k);return n+": "+x.m+" membros, "+x.v+" visitantes"}).join("\n")+(c.presObs?"\nInformações: "+c.presObs:"")}
