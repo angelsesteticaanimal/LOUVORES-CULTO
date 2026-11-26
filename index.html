@@ -34,7 +34,7 @@ details summary{cursor:pointer;padding:6px 0;font-weight:600}
 .rel h4{margin:14px 0 6px;color:var(--ac2)}.rel .row{display:none}.rel p{margin:4px 0}
 @media print{header,nav,.noprint{display:none!important}body{background:#fff!important;color:#000!important}main{max-width:none;padding:0}.card{background:#fff!important;color:#000!important;border:1px solid #bbb;box-shadow:none}.lv b,.tipo,.obs h4,.rel h4{color:#000!important}.data,.aut{color:#444!important}.obs{background:#f2f2f2!important}}
 </style></head><body>
-<header><h1>🎵 Louvores do Culto <small>v3.3</small></h1><span id="st">Local</span></header>
+<header><h1>🎵 Louvores do Culto <small>v3.4</small></h1><span id="st">Local</span></header>
 <nav id="nav"></nav><main id="v"></main>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -63,21 +63,23 @@ const M=()=>msg?`<div class="msg" style="color:${msg[0]=="⚠"?"var(--er)":"var(
 const link=()=>location.origin+location.pathname+"?igreja="+ig.id;
 const col=()=>db.collection("igrejas").doc(ig.id).collection("cultos");
 const dh=t=>t?new Date(t).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+const tenta=async(fn,n=3)=>{for(let i=0;;i++){try{return await fn()}catch(e){if(i>=n-1||!/offline|unavailable/i.test((e.code||"")+(e.message||"")))throw e;await new Promise(r=>setTimeout(r,1500))}}};
+let anonP=null;
 const rk=()=>Array.from(crypto.getRandomValues(new Uint8Array(14)),b=>"abcdefghjkmnpqrstuvwxyz23456789"[b%31]).join("");
-function errTxt(e){const c=e.code||"";if(/invalid-credential|wrong-password|user-not-found/.test(c))return"E-mail ou senha incorretos.";if(c.includes("email-already"))return"Este e-mail já está cadastrado.";if(c.includes("weak-password"))return"Senha fraca (mínimo 6 caracteres).";if(c.includes("invalid-email"))return"E-mail inválido.";if(c.includes("permission"))return"Sem permissão para esta ação.";return e.message||String(e)}
+function errTxt(e){const c=e.code||"";if(/offline|unavailable|network-request/i.test(c+(e.message||"")))return"Sem conexão com o servidor. Verifique a internet e toque em Tentar de novo.";if(/invalid-credential|wrong-password|user-not-found/.test(c))return"E-mail ou senha incorretos.";if(c.includes("email-already"))return"Este e-mail já está cadastrado.";if(c.includes("weak-password"))return"Senha fraca (mínimo 6 caracteres).";if(c.includes("invalid-email"))return"E-mail inválido.";if(c.includes("permission"))return"Sem permissão para esta ação.";return e.message||String(e)}
 function init(){
  if(HAS&&!FB){$("#v").innerHTML='<div class="vazio">Sem conexão com o Firebase. Conecte-se à internet e recarregue.</div>';return}
  if(!HAS){draw();return}
  if(!firebase.apps.length)firebase.initializeApp(CFG);
- auth=firebase.auth();db=firebase.firestore();db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
- auth.onAuthStateChanged(u=>{user=u;if(!u){stop();papel=null;if(qp&&qk){auth.signInAnonymously().catch(e=>{msg="⚠ "+errTxt(e);draw()});return}draw();return}const q=qp||(ig&&ig.id);if(!u.isAnonymous)qp=null;if(q)join(q);else draw()});
+ auth=firebase.auth();db=firebase.firestore();try{db.settings({experimentalAutoDetectLongPolling:true,merge:true})}catch(e){}db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+ auth.onAuthStateChanged(u=>{user=u;if(!u){stop();papel=null;if(qp&&qk){anonP=auth.signInAnonymously();anonP.catch(e=>{msg="⚠ "+errTxt(e);draw()});draw();return}draw();return}const q=qp||(ig&&ig.id);if(!u.isAnonymous)qp=null;if(q)join(q);else draw()});
 }
 function stop(){unsub.forEach(f=>f());unsub=[];cultos={};pedidos={};membros={};ch=null}
 async function join(id){
- id=slug(id);if(!id)return;msg="";pend=false;
- try{const d=await db.collection("igrejas").doc(id).get();
+ id=slug(id);if(!id||!user)return;msg="";pend=false;
+ try{const d=await tenta(()=>db.collection("igrejas").doc(id).get());
   if(!d.exists){msg="⚠ Igreja não encontrada.";ig=null;cand=null;draw();return}
-  const m=await db.doc(`igrejas/${id}/membros/${user.uid}`).get();
+  const m=await tenta(()=>db.doc(`igrejas/${id}/membros/${user.uid}`).get());
   if(m.exists){ig={id,nome:d.data().nome};papel=m.data().papel;eu=m.data().nome||user.displayName||user.email||"";LS("lc_ig",ig);cand=null;listen();draw();return}
   ig=null;cand={id,nome:d.data().nome};const p=user.isAnonymous?{exists:false}:await db.doc(`igrejas/${id}/pedidos/${user.uid}`).get();pend=p.exists;draw();
  }catch(e){msg="⚠ "+errTxt(e);draw()}}
@@ -104,7 +106,7 @@ function list(){return Object.entries(cultos).map(([id,c])=>({...c,id})).sort((a
 function draw(){
  const v=$("#v");
  if(HAS){
-  if(!user){$("#nav").innerHTML="";$("#st").textContent="Offline";if(qp&&qk&&!msg){$("#v").innerHTML='<div class="vazio">Conectando…</div>';return}return authView()}
+  if(!user){$("#nav").innerHTML="";if(qp&&qk){$("#st").textContent="Entrar com nome";return anonView()}$("#st").textContent="Entrar";return authView()}
   if(!ig||!papel){$("#nav").innerHTML="";if(user.isAnonymous)return anonView();$("#st").textContent=user.email;return igView()}
   $("#st").textContent=ig.nome+" · "+PAP[papel]}
  else $("#st").textContent="Local (só neste aparelho)";
@@ -121,8 +123,13 @@ function hist(){const q=($("#q").value||"").toLowerCase();const l=list().filter(
 /* ---- login / igreja ---- */
 function authView(){$("#v").innerHTML=`<div class="card"><h3>${modo=="in"?"Entrar como líder":"Criar conta de líder"}</h3>${modo=="up"?'<label>Seu nome</label><input id="an">':""}<label>E-mail</label><input id="ae" type="email"><label>Senha</label><input id="as" type="password"><div class="row"><button onclick="doAuth()">${modo=="in"?"Entrar":"Criar conta"}</button><button class="g" onclick="modo=modo=='in'?'up':'in';msg='';authView()">${modo=="in"?"Criar conta":"Já tenho conta"}</button></div>${M()}</div><div class="card"><h3>Entrar só com o nome</h3><p style="font-size:14px;color:var(--mu)">Veio por QR Code ou link? Escaneie de novo ou cole o link aqui. Não precisa de e-mail nem senha.</p>${qp&&!qk?'<p style="color:var(--er);font-size:14px">⚠ Este link é antigo e não tem a chave de acesso. Peça ao líder o QR ou link novo (aba Acessos).</p>':""}<input id="lk" placeholder="Cole o link aqui"><button class="b" onclick="usaLink()">Entrar só com o nome</button><div id="lkmsg" class="msg" style="color:var(--er)"></div></div>${CHAVE_OK?"":`<p style="font-size:12px;color:var(--mu);word-break:break-all;margin:6px 4px">Diagnóstico — projeto: <b>${esc(CFG.projectId)}</b><br>chave (${String(CFG.apiKey).length} caracteres): <b style="color:${CHAVE_OK?"var(--ok)":"var(--er)"}">${CHAVE_OK?"formato OK ✓":"⚠ inválida: deve começar com AIza e ter 39 caracteres"}</b><br><code style="font-size:15px;color:var(--tx)">${esc(CFG.apiKey)}</code></p>`}`}
 async function doAuth(){const e=$("#ae").value.trim(),p=$("#as").value,n=$("#an")?$("#an").value.trim():"";try{if(modo=="up"){const c=await auth.createUserWithEmailAndPassword(e,p);try{await c.user.updateProfile({displayName:n})}catch(x){}}else await auth.signInWithEmailAndPassword(e,p);msg=""}catch(x){msg="⚠ "+errTxt(x);if(user)draw();else authView()}}
-function anonView(){const c=cand;$("#st").textContent="Entrar com nome";$("#v").innerHTML=c&&qk?`<div class="card"><h3>${esc(c.nome)}</h3><p style="color:var(--mu)">Digite seu nome para entrar ${qt=="e"?"(você poderá ver e editar)":"(você poderá ver os cultos)"}.</p><label>Seu nome</label><input id="nm" value="${esc(LS("lc_nome")||"")}" autocomplete="name"><button class="b" onclick="entra()">Entrar</button>${M()}</div>`:`<div class="card"><h3>Entrar por QR Code ou link</h3><p style="color:var(--mu)">Abra o link ou escaneie o QR Code que o líder da igreja enviou.</p>${M()}</div>`}
-async function entra(){const n=$("#nm").value.trim();if(n.length<2){msg="⚠ Digite seu nome.";anonView();return}LS("lc_nome",n);try{const ps=qt=="e"?["completo"]:qt=="l"?["leitura"]:["leitura","completo"];let ok=false;for(const p of ps){try{await db.doc(`igrejas/${cand.id}/membros/${user.uid}`).set({nome:n,papel:p,chave:qk,entrou:Date.now()});ok=true;break}catch(e){}}if(!ok)throw 0;msg="";await join(cand.id)}catch(e){msg="⚠ Link inválido ou antigo. Peça um novo ao líder.";anonView()}}
+function anonView(){const c=cand||(qp?{id:qp,nome:qp}:null);$("#st").textContent="Entrar com nome";$("#v").innerHTML=c&&qk?`<div class="card"><h3>${esc(c.nome)}</h3><p style="color:var(--mu)">Digite seu nome para entrar ${qt=="e"?"(você poderá ver e editar)":"(você poderá ver os cultos)"}.</p><label>Seu nome</label><input id="nm" value="${esc(LS("lc_nome")||"")}" autocomplete="name"><div class="row"><button onclick="entra()">Entrar</button><button class="g" onclick="join('${esc(c.id)}')">Tentar de novo</button></div>${M()}</div>`:`<div class="card"><h3>Entrar por QR Code ou link</h3><p style="color:var(--mu)">Abra o link ou escaneie o QR Code que o líder da igreja enviou.</p>${M()}</div>`}
+async function entra(){const n=$("#nm").value.trim();if(n.length<2){msg="⚠ Digite seu nome.";anonView();return}LS("lc_nome",n);msg="";const id=slug(qp||(cand&&cand.id)||"");
+ try{if(!user){const c=await (anonP||(anonP=auth.signInAnonymously()));user=c.user}
+  const ps=qt=="e"?["completo"]:qt=="l"?["leitura"]:["leitura","completo"];let ok=false,err=null;
+  for(const p of ps){try{await tenta(()=>db.doc(`igrejas/${id}/membros/${user.uid}`).set({nome:n,papel:p,chave:qk,entrou:Date.now()}));ok=true;break}catch(e){err=e}}
+  if(!ok)throw err||0;await join(id)}
+ catch(e){msg=/offline|unavailable|network/i.test((e&&e.code||"")+(e&&e.message||""))?"⚠ "+errTxt(e):"⚠ Link inválido ou antigo. Peça um novo ao líder.";anonView()}}
 function igView(){const c=cand;$("#v").innerHTML=`<div class="card"><h3>Entrar na sua igreja</h3><label>Código da igreja</label><input id="ic" value="${esc(c?c.id:"")}" placeholder="ex.: igreja-central-rj"><button class="b" onclick="join($('#ic').value)">Continuar</button>${c?(pend?'<p>⏳ Pedido enviado. Aguarde o líder liberar seu acesso.</p><button class="g b" onclick="join(cand.id)">Verificar novamente</button>':`<p>Igreja encontrada: <b>${esc(c.nome)}</b></p><button class="b" onclick="pedir()">Solicitar acesso</button>`):""}${M()}</div>
 <div class="card"><h3>Cadastrar minha igreja</h3><label>Nome da igreja</label><input id="cn"><label>Código (letras minúsculas, números e hífen)</label><input id="cc" placeholder="igreja-central-rj"><button class="b" onclick="criaIg()">Cadastrar e ser o líder</button></div>
 <div class="row"><button class="g" onclick="auth.signOut()">Sair (${esc(user.email)})</button></div>`}
